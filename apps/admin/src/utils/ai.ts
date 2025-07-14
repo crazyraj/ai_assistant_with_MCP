@@ -53,9 +53,23 @@ export const genAIResponse = createServerFn({ method: "POST", response: "raw" })
       return result.toDataStreamResponse();
     } catch (error) {
       console.error("Error in genAIResponse:", error);
+      console.error("Normalized messages:", messages);
+      // Return detailed error in development, generic in production
+      const isDev = process.env.NODE_ENV !== "production";
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       if (error instanceof Error && error.message.includes("rate limit")) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), { status: 429, headers: { "Content-Type": "application/json" } });
       }
-      return new Response(JSON.stringify({ error: "An error occurred. Please try again later." }), { status: 500, headers: { "Content-Type": "application/json" } });
+      // Always return 500 status for errors
+      return new Response(
+        JSON.stringify({
+          error: isDev ? errorMsg : "An error occurred. Please try again later.",
+          ...(isDev && errorStack ? { stack: errorStack } : {}),
+          normalizedMessages: messages,
+          errorType: error && error.constructor ? error.constructor.name : typeof error
+        }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
     }
   });
